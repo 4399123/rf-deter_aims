@@ -114,12 +114,12 @@ if __name__ == '__main__':
 
     parse = argparse.ArgumentParser()
     parse.add_argument('--weight-path', dest='weight_pth', type=str,
-                       default='pt/v1/checkpoint_best_regular.pth')          #训练好的模型路径
+                       default='pt/v2/checkpoint_best_total.pth')          #训练好的模型路径
     parse.add_argument('--outpath', dest='out_pth', type=str,
                        default='./onnx/best.onnx')                     #中间产物onnx路径
     parse.add_argument('--ousmitpath', dest='outsmi_pth', type=str,
                        default='./onnx/best-smi.onnx')                 #最终产物onnx路径
-    parse.add_argument('--resolution', type=int,default=640)      #模型输入分辨率
+    parse.add_argument('--resolution', type=int,default=384)      #模型输入分辨率
     parse.add_argument('--max-detections', type=int, default=150,   #最大检测数
                       help='Maximum number of detections to output')
     args = parse.parse_args()

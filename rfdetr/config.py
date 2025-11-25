@@ -145,7 +145,7 @@ class TrainConfig(BaseModel):
     multi_scale: bool = True
     expanded_scales: bool = True
     do_random_resize_via_padding: bool = False
-    use_ema: bool = True
+    use_emaZZ: bool = True
     num_workers: int = 2
     weight_decay: float = 1e-4
     early_stopping: bool = False

@@ -11,7 +11,7 @@ from imutils import paths
 onnx_path=r'./onnx/best-smi.onnx'
 imgspath=r'./images/baofeng'
 # imgspath=r'./onnx/imgs'
-w,h=640,640
+w,h=384,384
 
 if not os.path.exists('./results'):
     os.makedirs('./results')

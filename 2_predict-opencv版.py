@@ -8,10 +8,11 @@ from class_label.baofeng_class import BF_CLASSES
 from imutils import paths
 
 resolution=640
-model = RFDETRNano(pretrain_weights='pt/v1/checkpoint_best_regular.pth', resolution=resolution)
+model = RFDETRNano(pretrain_weights='pt/v3/checkpoint_best_regular.pth', resolution=resolution)
 model.optimize_for_inference()
 
-input_path=r'./images/baofeng'
+# input_path=r'./images/baofeng'
+input_path=r'C:\D\github_zl\LocalDataSetV12_COCO\train'
 output_path=r'./results'
 
 if not os.path.exists(output_path):
@@ -35,7 +36,7 @@ for img_path in imagespaths:
     image=cv2.imread(img_path)
     imgage = cv2.resize(image, (resolution, resolution))
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    detections=model.predict(image,threshold=0.35)
+    detections=model.predict(image,threshold=0.1)
 
     # 获取检测信息
     boxes = detections.xyxy  # 边界框坐标 [x1, y1, x2, y2]
@@ -67,7 +68,7 @@ for img_path in imagespaths:
 
         # 绘制标签文本
         cv2.putText(image,label,(x1, y1 - 5),cv2.FONT_HERSHEY_SIMPLEX,fontScale=0.5,color=(255, 255, 255), thickness=1)
-    cv2.imwrite(os.path.join(output_path,basename),image[:,:,::-1])
+    cv2.imwrite(os.path.join(output_path,'opencv'+basename),image[:,:,::-1])
 
 
 

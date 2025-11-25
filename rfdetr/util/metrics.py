@@ -58,6 +58,8 @@ class MetricsPlotSink:
         ema_ap50 = np.array([safe_index(x, 1) for x in ema_coco_eval if x is not None], dtype=np.float32)
         ema_ar50_90 = np.array([safe_index(x, 8) for x in ema_coco_eval if x is not None], dtype=np.float32)
 
+        import matplotlib
+        matplotlib.use('Agg')  # 设置为非交互式后端
         fig, axes = plt.subplots(2, 2, figsize=(18, 12))
 
         # Subplot (0,0): Training and Validation Loss
@@ -170,7 +172,7 @@ class MetricsTensorBoardSink:
     def close(self):
         if not self.writer:
             return
-        
+
         self.writer.close()
 
 class MetricsWandBSink:
@@ -239,5 +241,5 @@ class MetricsWandBSink:
     def close(self):
         if not wandb or not self.run:
             return
-            
+
         self.run.finish()
