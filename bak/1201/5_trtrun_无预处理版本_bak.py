@@ -63,7 +63,7 @@ class TrtModel:
             binding_info = {
                 'host': host_mem,
                 'device': device_mem,
-                'shape': dims,  # 保存原始计算出的维度 (MaxBatch, TopK, 6)
+                'shape': dims,  # 保存原始计算出的维度 (MaxBatch, 300, 4)
                 'index': i
             }
 
@@ -99,10 +99,10 @@ class TrtModel:
 
         self.stream.synchronize()
 
-        # 6. 解析输出 (修复 3: 自动 Reshape)
+        # 6. 解析输出 (修复 3: 自动 Reshape，不再硬编码 150)
         results = []
         for out in self.outputs:
-            # 获取该输出绑定的最大维度 (例如 [1, TopK, 6])
+            # 获取该输出绑定的最大维度 (例如 [1, 300, 4])
             shape = list(out['shape'])
             shape[0] = batch_size  # 修正为当前实际 Batch
 
@@ -122,10 +122,7 @@ if __name__ == "__main__":
     if not os.path.exists('./results_trt'):
         os.makedirs('./results_trt')
 
-    palette = {
-        0: (0, 255, 0), 1: (0, 0, 255), 2: (255, 0, 0), 3: (255, 255, 0),
-        4: (255, 0, 255), 5: (171, 130, 255), 6: (155, 211, 255), 7: (0, 255, 255)
-    }
+    palette = {0: (0, 255, 0), 1: (0, 0, 255), 2: (255, 0, 0)}
     label_map = {0: 'TuAn', 1: 'LV'}
 
     # 初始化模型
@@ -142,52 +139,55 @@ if __name__ == "__main__":
         H, W = img_raw.shape[:2]
         img_bak = img_raw.copy()
 
-        # --- 预处理 ---
+        # --- 预处理 (保持与 4_onnxrun 一致) ---
         img = cv2.resize(img_raw, (w, h))
+        # 注意：4_onnxrun 中没有做 /255.0，这里也保持不做
+        # 如果 ONNX 实际上是 implicitly normalized，这里 TRT 可能需要手动 /255.0
+        # 如果跑出来框很多但位置不对，请尝试解开下面这行的注释：
+        # img = img.astype(np.float32) / 255.0
+
         img = np.transpose(img, (2, 0, 1))  # HWC -> CHW
         img = np.expand_dims(img, axis=0)  # (1, 3, 640, 640)
 
         # --- 推理 ---
-        # out 是一个列表，根据最新的 ONNX 结构，里面应该只有一个 array
-        # Shape: [Batch, TopK, 6]
         out = model(img)
 
-        # --- 解析输出 (修改核心部分) ---
-        batch_output = out[0][0]  # 取出 Batch 0: [TopK, 6]
+        # --- 解析输出 ---
+        # 这里的 out[0] 和 out[1] 取决于 Engine 导出时的顺序
+        # 如果结果很怪，尝试交换 out[0] 和 out[1]
+        dets = out[0][0]  # 期望: [300, 4]
+        scores_probs = out[1][0]  # 期望: [300, num_classes]
+
+        # 如果发现 dets 维度是 [300, num_classes] 而 scores 是 [300, 4]，则交换它们
+        if dets.shape[-1] != 4:
+            dets, scores_probs = scores_probs, dets
 
         detections = []
+        for i in range(len(dets)):
+            bbox = dets[i]
+            probs = scores_probs[i]
 
-        # 遍历每一行检测结果
-        # format: [cx, cy, w, h, score, class_id]
-        for row in batch_output:
-            cx, cy, w_obj, h_obj = row[0], row[1], row[2], row[3]
-            confidence = row[4]
-            class_id = int(row[5])
+            class_id = np.argmax(probs)
+            confidence = probs[class_id]
 
             if confidence > 0.35:
-                # 反归一化 (直接乘原图尺寸)
+                cx, cy, w_obj, h_obj = bbox
+
+                # 反归一化
                 cx = cx * W
                 cy = cy * H
                 w_obj = w_obj * W
                 h_obj = h_obj * H
 
-                # 转为左上角/右下角坐标 (xyxy)
                 x1 = int(cx - w_obj / 2)
                 y1 = int(cy - h_obj / 2)
                 x2 = int(cx + w_obj / 2)
                 y2 = int(cy + h_obj / 2)
 
-                # 边界保护
-                x1 = max(0, min(x1, W))
-                y1 = max(0, min(y1, H))
-                x2 = max(0, min(x2, W))
-                y2 = max(0, min(y2, H))
+                x1, y1 = max(0, x1), max(0, y1)
+                x2, y2 = min(W, x2), min(H, y2)
 
-                detections.append({
-                    'bbox': [x1, y1, x2, y2],
-                    'class_id': class_id,
-                    'conf': confidence
-                })
+                detections.append({'bbox': [x1, y1, x2, y2], 'class_id': class_id, 'conf': confidence})
 
         # --- 可视化 ---
         for det in detections:
@@ -195,7 +195,7 @@ if __name__ == "__main__":
             class_id = det['class_id']
             conf = det['conf']
 
-            color = palette.get(class_id % len(palette), (0, 255, 0))
+            color = palette.get(class_id, (0, 255, 0))
             cv2.rectangle(img_bak, (x1, y1), (x2, y2), color, 2)
             label_text = f"{label_map.get(class_id, str(class_id))}: {conf:.2f}"
             cv2.putText(img_bak, label_text, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)

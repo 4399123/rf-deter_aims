@@ -97,7 +97,7 @@ def main(modelpath, onnxbest, onnxsmi, resolution, max_detections=100):
         num_queries=max_detections,  # 可配置的查询数量
         num_select=max_detections  # 可配置的选择数量
     )
-    rfdetr_wrapper.optimize_for_inference()
+
     # 自动剥离外层封装，寻找真正的 nn.Module
     if hasattr(rfdetr_wrapper.model, 'model') and isinstance(rfdetr_wrapper.model.model, nn.Module):
         core_model = rfdetr_wrapper.model.model
