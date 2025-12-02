@@ -172,6 +172,11 @@ def train_one_epoch(
         )
         metric_logger.update(class_error=loss_dict_reduced["class_error"])
         metric_logger.update(lr=optimizer.param_groups[0]["lr"])
+
+        # # 在特定频率打印详细的学习率信息
+        # if data_iter_step % print_freq == 0:
+        #     current_lr = optimizer.param_groups[0]["lr"]
+        #     print(f"Current learning rate: {current_lr:.8f}")
     # gather the stats from all processes
     metric_logger.synchronize_between_processes()
     print("Averaged stats:", metric_logger)
@@ -220,7 +225,18 @@ def coco_extended_metrics(coco_eval):
         ap_50    = float(p_slice[iou50_idx][p_slice[iou50_idx] > -1].mean()) if (p_slice[iou50_idx] > -1).any() else float("nan")
 
         pc = float(prec[best_j, k]) if prec_raw[best_j, k] > -1 else float("nan")
-        rc = macro_recall
+        # 计算当前类别在最佳阈值下的recall值
+        recall_slice = coco_eval.eval["recall"][iou50_idx, k, area_idx, maxdet_idx]
+        rc = float(recall_slice) if recall_slice > -1 else float("nan")
+        # 如果recall为nan，使用该类别的平均recall
+        if math.isnan(rc):
+            recall_all_thrs = coco_eval.eval["recall"][:, k, area_idx, maxdet_idx]
+            valid_recalls = recall_all_thrs[recall_all_thrs > -1]
+            rc = float(np.mean(valid_recalls)) if len(valid_recalls) > 0 else float("nan")
+
+        # 确保recall值不超过1.0
+        if not math.isnan(rc):
+            rc = min(rc, 1.0)
 
         #Doing to this to filter out dataset class
         if np.isnan(ap_50_95) or np.isnan(ap_50) or np.isnan(pc) or np.isnan(rc):
@@ -228,28 +244,33 @@ def coco_extended_metrics(coco_eval):
 
         per_class.append({
             "class"      : cat_id_to_name[int(cid)],
-            "map@50:95"  : ap_50_95,
-            "map@50"     : ap_50,
-            "precision"  : pc,
-            "recall"     : rc,
+            "map@50:95"  : float(f"{ap_50_95:.6f}"),
+            "map@50"     : float(f"{ap_50:.6f}"),
+            "precision"  : float(f"{pc:.6f}"),
+            "recall"     : float(f"{rc:.6f}"),
         })
+
+    # 计算所有类别的平均recall
+    valid_recalls = [class_info["recall"] for class_info in per_class
+                    if not math.isnan(class_info["recall"])]
+    mean_recall = float(np.mean(valid_recalls)) if valid_recalls else float("nan")
 
     per_class.append({
         "class"     : "all",
-        "map@50:95" : map_50_95,
-        "map@50"    : map_50,
-        "precision" : macro_precision,
-        "recall"    : macro_recall,
+        "map@50:95" : float(f"{map_50_95:.6f}"),
+        "map@50"    : float(f"{map_50:.6f}"),
+        "precision" : float(f"{macro_precision:.6f}"),
+        "recall"    : float(f"{min(mean_recall, 1.0):.6f}"),
     })
 
     return {
         "class_map": per_class,
-        "map"      : map_50,
-        "precision": macro_precision,
-        "recall"   : macro_recall
+        "map"      : float(f"{map_50:.6f}"),
+        "precision": float(f"{macro_precision:.6f}"),
+        "recall"   : float(f"{macro_recall:.6f}"),
     }
 
-def evaluate(model, criterion, postprocess, data_loader, base_ds, device, args=None):
+def evaluate(model, criterion, postprocess, data_loader, base_ds, device, args=None, class_names=None):
     model.eval()
     if args.fp16_eval:
         model.half()
@@ -334,6 +355,40 @@ def evaluate(model, criterion, postprocess, data_loader, base_ds, device, args=N
         stats["results_json"] = results_json
         if "bbox" in iou_types:
             stats["coco_eval_bbox"] = coco_evaluator.coco_eval["bbox"].stats.tolist()
+
+        # 打印 class_map 信息
+        if "results_json" in stats and "class_map" in stats["results_json"]:
+            print("\nClass Map Results:")
+            class_map = stats["results_json"]["class_map"]
+
+            # 获取数据集中的类别ID和名称映射
+            cat_ids = coco_evaluator.coco_eval["bbox"].params.catIds
+            cat_id_to_name = {c["id"]: c["name"] for c in coco_evaluator.coco_gt.loadCats(cat_ids)}
+
+            # 按类别ID顺序应用自定义类别名称
+            if class_names:
+                # 获取所有类别ID并按升序排序
+                sorted_cat_ids = sorted(cat_id_to_name.keys())
+
+                # 确保class_names数量与类别数量匹配
+                if len(class_names) >= len(sorted_cat_ids):
+                    # 创建类别ID到自定义名称的映射
+                    id_to_custom_name = {cat_id: class_names[i] for i, cat_id in enumerate(sorted_cat_ids)}
+
+                    # 更新class_map中的类别名称
+                    for class_info in class_map:
+                        if class_info['class'] == 'all':
+                            continue
+                        # 找到当前类别对应的原始ID
+                        for cat_id, name in cat_id_to_name.items():
+                            if name == class_info['class']:
+                                if cat_id in id_to_custom_name:
+                                    print(f"Mapping: {name} (ID:{cat_id}) -> {id_to_custom_name[cat_id]}")
+                                    class_info['class'] = id_to_custom_name[cat_id]
+                                break
+
+            for class_info in class_map:
+                print(f"{class_info['class']}: {class_info}")
 
         if "segm" in iou_types:
             results_json = coco_extended_metrics(coco_evaluator.coco_eval["segm"])

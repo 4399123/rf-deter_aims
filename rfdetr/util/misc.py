@@ -194,8 +194,8 @@ class MetricLogger(object):
 
     def __str__(self):
         loss_str = []
-        # 只显示 class_error, loss, loss_bbox
-        allowed_keys = {'class_error', 'loss', 'loss_bbox'}
+        # 显示 class_error, loss, loss_bbox, 和学习率 lr
+        allowed_keys = {'class_error', 'loss', 'loss_bbox', 'lr'}
         for name, meter in self.meters.items():
             if name in allowed_keys:
                 loss_str.append(
