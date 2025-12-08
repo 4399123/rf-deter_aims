@@ -69,8 +69,7 @@ def train_one_epoch(
         "class_error", utils.SmoothedValue(window_size=1, fmt="{value:.2f}")
     )
     header = "Epoch: [{}]".format(epoch)
-    print_freq = 10
-    start_steps = epoch * num_training_steps_per_epoch
+    print_freq = 1  # 修改为1，确保每个批次都打印日志
 
     print("Grad accum steps: ", args.grad_accum_steps)
     print("Total batch size: ", batch_size * utils.get_world_size())
@@ -85,10 +84,12 @@ def train_one_epoch(
     assert batch_size % args.grad_accum_steps == 0
     sub_batch_size = batch_size // args.grad_accum_steps
     print("LENGTH OF DATA LOADER:", len(data_loader))
+
+    # 移除对start_steps的引用，因为会触发错误
     for data_iter_step, (samples, targets) in enumerate(
         metric_logger.log_every(data_loader, print_freq, header)
     ):
-        it = start_steps + data_iter_step
+        it = data_iter_step
         callback_dict = {
             "step": it,
             "model": model,
@@ -389,6 +390,7 @@ def evaluate(model, criterion, postprocess, data_loader, base_ds, device, args=N
 
             for class_info in class_map:
                 print(f"{class_info['class']}: {class_info}")
+            print('-'*180)
 
         if "segm" in iou_types:
             results_json = coco_extended_metrics(coco_evaluator.coco_eval["segm"])

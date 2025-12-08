@@ -442,6 +442,50 @@ class RandomErasing(object):
         return self.eraser(img), target
 
 
+class ColorJitter(object):
+    """随机改变图像的亮度、对比度、饱和度和色调"""
+
+    def __init__(self, brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1):
+        self.color_jitter = T.ColorJitter(
+            brightness=brightness,
+            contrast=contrast,
+            saturation=saturation,
+            hue=hue
+        )
+
+    def __call__(self, img, target):
+        return self.color_jitter(img), target
+
+
+class RandomGrayscale(object):
+    """随机将图像转换为灰度图"""
+
+    def __init__(self, p=0.1):
+        self.p = p
+        self.grayscale = T.Grayscale(num_output_channels=3)
+
+    def __call__(self, img, target):
+        if random.random() < self.p:
+            return self.grayscale(img), target
+        return img, target
+
+
+class GaussianNoise(object):
+    """添加高斯噪声"""
+
+    def __init__(self, mean=0.0, std=0.1):
+        self.mean = mean
+        self.std = std
+
+    def __call__(self, img, target):
+        if random.random() < 0.5:
+            noise = torch.randn_like(F.to_tensor(img)) * self.std + self.mean
+            noisy_img = F.to_tensor(img) + noise
+            noisy_img = torch.clamp(noisy_img, 0.0, 1.0)
+            return F.to_pil_image(noisy_img), target
+        return img, target
+
+
 class Normalize(object):
     def __init__(self, mean, std):
         self.mean = mean

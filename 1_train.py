@@ -4,7 +4,7 @@ from rfdetr.util.coco_classes import COCO_CLASSES
 from imutils import paths
 import os
 
-os.environ["CUDA_VISIBLE_DEVICES"]="0,1,2,3"
+os.environ["CUDA_VISIBLE_DEVICES"]="0"
 if __name__ == '__main__':
     model = RFDETRNano(pretrain_weights='weights/rf-detr-nano.pth', resolution=384,device='cuda')
 
@@ -23,14 +23,16 @@ if __name__ == '__main__':
     # )
     model.train(
         dataset_dir=r'../LocalDataSetV12_COCO_RFDETR',
-        epochs=100,
+        epochs=200,
         batch_size=10,
         grad_accum_steps=2,
         lr=1e-4,
         output_dir=output_dir,
         class_names=['TA','LV'],
-        use_ema=False,
+        use_ema=True,
+        print_freq=1,
+        # 新增的数据增强相关参数
+        multi_scale=True,
+        expanded_scales=True,
+        do_random_resize_via_padding=True
     )
-
-
-

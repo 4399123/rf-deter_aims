@@ -112,7 +112,7 @@ for pic_path in tqdm(imgpaths):
         # 绘制标签和置信度
         label_text = f"{label.get(class_id, f'Class {class_id}')}: {confidence:.2f}"
         cv2.putText(result_img, label_text, (x1, y1 - 10),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+                    cv2.FONT_HERSHEY_SIMPLEX, 2, color, 2)
 
     # 保存结果图像
     # 稍微修改了文件名处理以防止可能的后缀重复

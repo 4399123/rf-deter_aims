@@ -158,6 +158,8 @@ def make_coco_transforms(image_set, resolution, multi_scale=False, expanded_scal
     if image_set == 'train':
         return T.Compose([
             T.RandomHorizontalFlip(),
+            T.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.3, hue=0.1),
+            T.RandomGrayscale(p=0.1),
             T.RandomSelect(
                 T.RandomResize(scales, max_size=1333),
                 T.Compose([
@@ -166,6 +168,7 @@ def make_coco_transforms(image_set, resolution, multi_scale=False, expanded_scal
                     T.RandomResize(scales, max_size=1333),
                 ])
             ),
+            T.GaussianNoise(std=0.05),
             normalize,
         ])
 
@@ -204,6 +207,8 @@ def make_coco_transforms_square_div_64(image_set, resolution, multi_scale=False,
     if image_set == 'train':
         return T.Compose([
             T.RandomHorizontalFlip(),
+            T.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.3, hue=0.1),
+            T.RandomGrayscale(p=0.1),
             T.RandomSelect(
                 T.SquareResize(scales),
                 T.Compose([
@@ -212,6 +217,7 @@ def make_coco_transforms_square_div_64(image_set, resolution, multi_scale=False,
                     T.SquareResize(scales),
                 ]),
             ),
+            T.GaussianNoise(std=0.05),
             normalize,
         ])
 
